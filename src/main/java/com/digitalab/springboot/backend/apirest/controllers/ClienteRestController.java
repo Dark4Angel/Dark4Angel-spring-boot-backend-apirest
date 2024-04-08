@@ -1,14 +1,20 @@
 package com.digitalab.springboot.backend.apirest.controllers;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 //import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,6 +30,8 @@ import org.springframework.web.bind.annotation.RestController;
 import com.digitalab.springboot.backend.apirest.models.entity.Cliente;
 import com.digitalab.springboot.backend.apirest.models.services.IClienteService;
 
+import jakarta.validation.Valid;
+
 @CrossOrigin(origins= {"http://localhost:4200"})
 @RestController
 @RequestMapping("/api")
@@ -37,6 +45,16 @@ public class ClienteRestController {
 	public List<Cliente> index() {
 		return clienteService.findAll();
 	}
+	
+	//http://localhost:8080/clientes
+		@GetMapping("/clientes/page/{page}")
+		public Page<Cliente> index(@PathVariable Integer page) {
+			//return clienteService.findAll(PageRequest.of(page, 4));
+			PageRequest pageable = PageRequest.of(page, 4);
+			return clienteService.findAll(pageable);
+		}
+	
+	
 	//http://localhost:8080/clientes/4
 	@GetMapping("/clientes/{id}")
 	public ResponseEntity<?> show(@PathVariable Long id) {
@@ -60,10 +78,27 @@ public class ClienteRestController {
 	}	
 	//http://localhost:8080/clientes
 	@PostMapping("/clientes")
-	public ResponseEntity<?> create(@RequestBody Cliente cliente) {
+	public ResponseEntity<?> create(@Valid @RequestBody Cliente cliente, BindingResult result) {
 		
 		Cliente clienteNew = null;
 		Map<String, Object> response = new HashMap<>();
+		
+		if(result.hasErrors()) {
+			
+			/*List<String> errors = new ArrayList<>();
+			
+			for(FieldError err: result.getFieldErrors()) {
+				errors.add("El campo '" + err.getField() + "' "+err.getDefaultMessage());
+			}*/
+			List<String> errors = result.getFieldErrors()
+					.stream()
+					.map(err -> "El campo '" + err.getField() + "' "+err.getDefaultMessage())
+					.collect(Collectors.toList());
+					
+			
+			response.put("errors", errors);
+			return new ResponseEntity<Map<String, Object>>(response, HttpStatus.BAD_REQUEST);
+		}
 		
 		try {
 			clienteNew = clienteService.save(cliente);		
@@ -81,13 +116,24 @@ public class ClienteRestController {
 	
 	//http://localhost:8080/clientes/4
 	@PutMapping("/clientes/{id}")
-	public ResponseEntity<?> update(@RequestBody Cliente cliente, @PathVariable Long id) {
+	public ResponseEntity<?> update(@Valid @RequestBody Cliente cliente, BindingResult result, @PathVariable Long id) {
 		
 		Cliente clienteActual = clienteService.findById(id);
 		
 		Cliente clienteUpdated = null;
 
 		Map<String, Object> response = new HashMap<>();
+		
+		if(result.hasErrors()) {
+			
+			List<String> errors = result.getFieldErrors()
+					.stream()
+					.map(err -> "El campo '" + err.getField() + "' "+err.getDefaultMessage())
+					.collect(Collectors.toList());
+			
+			response.put("errors", errors);
+			return new ResponseEntity<Map<String, Object>>(response, HttpStatus.BAD_REQUEST);
+		}
 
 		if(clienteActual== null) {
 			response.put("mensaje", "Error: no se pudo editar, el cliente ID: ".concat(id.toString().concat(" ¡no existe en la base de datos!")));
@@ -124,7 +170,16 @@ public class ClienteRestController {
 		public ResponseEntity<?> delete(@PathVariable Long id) {
 			
 			Map<String, Object> response = new HashMap<>();
+			Cliente clienteActual = clienteService.findById(id);
 			
+			
+
+			
+			if(clienteActual== null) {
+				response.put("mensaje", "Error: no se pudo eliminar, el cliente ID: ".concat(id.toString().concat(" ¡no existe en la base de datos!")));
+				return new ResponseEntity<Map<String, Object>>(response, HttpStatus.NOT_FOUND);
+
+			}
 			try {
 					
 			     clienteService.delete(id);
